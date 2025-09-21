@@ -11,7 +11,6 @@ class JobPortalState {
             USER_JOBS: 'jobportal_user_jobs',
             FILTERS: 'jobportal_filters',
             SAVED_JOBS: 'jobportal_saved_jobs',
-            RECENTLY_VIEWED: 'jobportal_recently_viewed',
             THEME: 'jobportal_theme'
         };
         
@@ -25,7 +24,6 @@ class JobPortalState {
 
         this.itemsPerPage = 9;
         this.currentPage = 1;
-        this.recentlyViewedLimit = 5;
 
         this.eventListeners = new Map();
         this.init();
@@ -46,9 +44,6 @@ class JobPortalState {
 
         // Load saved jobs (for job seekers)
         this.savedJobs = this.getFromStorage(this.storageKeys.SAVED_JOBS) || [];
-
-        // Load recently viewed jobs
-        this.recentlyViewedJobs = this.getFromStorage(this.storageKeys.RECENTLY_VIEWED) || [];
 
         // Load theme
         this.theme = this.getFromStorage(this.storageKeys.THEME) || 'light';
@@ -322,40 +317,6 @@ class JobPortalState {
     }
 
     /**
-     * Add a job to recently viewed list
-     */
-    addRecentlyViewed(jobId) {
-        // Remove if it already exists to move it to the front
-        const index = this.recentlyViewedJobs.indexOf(jobId);
-        if (index > -1) {
-            this.recentlyViewedJobs.splice(index, 1);
-        }
-
-        // Add to the front
-        this.recentlyViewedJobs.unshift(jobId);
-
-        // Trim the list to the limit
-        if (this.recentlyViewedJobs.length > this.recentlyViewedLimit) {
-            this.recentlyViewedJobs.length = this.recentlyViewedLimit;
-        }
-
-        this.saveToStorage(this.storageKeys.RECENTLY_VIEWED, this.recentlyViewedJobs);
-        this.emit('recentlyViewedUpdated', this.getRecentlyViewedJobs());
-    }
-
-    /**
-     * Get all recently viewed job objects
-     */
-    getRecentlyViewedJobs() {
-        if (this.recentlyViewedJobs.length === 0) return [];
-
-        const recentlyViewedSet = new Set(this.recentlyViewedJobs);
-        return this.allJobs
-            .filter(job => recentlyViewedSet.has(job.id))
-            .sort((a, b) => this.recentlyViewedJobs.indexOf(a.id) - this.recentlyViewedJobs.indexOf(b.id)); // Keep recent order
-    }
-
-    /**
      * Check if user has applied for a job
      */
     hasApplied(jobId) {
@@ -535,8 +496,7 @@ class JobPortalState {
             filteredJobs: this.filteredJobs.length,
             applications: this.applications.length,
             userJobs: this.userJobs.length,
-            savedJobs: this.savedJobs.length,
-            recentlyViewed: this.recentlyViewedJobs.length
+            savedJobs: this.savedJobs.length
         };
     }
 
@@ -561,7 +521,6 @@ class JobPortalState {
             userJobs: this.userJobs,
             savedJobs: this.savedJobs,
             theme: this.theme,
-            recentlyViewedJobs: this.recentlyViewedJobs,
             filters: this.filters,
             exportedAt: new Date().toISOString()
         };
@@ -581,10 +540,6 @@ class JobPortalState {
             if (data.userJobs) {
                 this.userJobs = data.userJobs;
                 this.saveToStorage(this.storageKeys.USER_JOBS, this.userJobs);
-            }
-            if (data.recentlyViewedJobs) {
-                this.recentlyViewedJobs = data.recentlyViewedJobs;
-                this.saveToStorage(this.storageKeys.RECENTLY_VIEWED, this.recentlyViewedJobs);
             }
             if (data.savedJobs) {
                 this.savedJobs = data.savedJobs;

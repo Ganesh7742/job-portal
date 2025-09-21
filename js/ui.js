@@ -20,7 +20,6 @@ class JobPortalUI {
         this.updateRoleUI();
         this.setupFilters();
         this.updateThemeUI();
-        this.renderRecentlyViewed();
         this.showView('jobs');
     }
 
@@ -177,6 +176,10 @@ class JobPortalUI {
     setupStateListeners() {
         this.state.addEventListener('roleChanged', (role) => {
             this.updateRoleUI();
+            // Re-render the current view if it's affected by role change
+            if (this.currentView === 'jobs') {
+                this.renderJobsGrid(this.state.getPaginatedJobs());
+            }
         });
 
         this.state.addEventListener('themeChanged', (theme) => {
@@ -230,10 +233,6 @@ class JobPortalUI {
             if (this.currentView === 'post-job') {
                 this.showView('manage-jobs');
             }
-        });
-
-        this.state.addEventListener('recentlyViewedUpdated', (jobs) => {
-            this.renderRecentlyViewed();
         });
 
         this.state.addEventListener('applicationUpdated', (application) => {
@@ -364,7 +363,6 @@ class JobPortalUI {
                 const paginatedJobs = this.state.getPaginatedJobs();
                 this.renderJobsGrid(paginatedJobs);
                 this.renderPaginationControls();
-                this.renderRecentlyViewed();
                 this.updateCategoryFilter();
                 this.updateLocationFilter();
                 break;
@@ -488,8 +486,6 @@ class JobPortalUI {
      * Show job details in modal
      */
     showJobDetails(jobId) {
-        this.state.addRecentlyViewed(jobId);
-
         const job = this.state.getJobById(jobId);
         if (!job) return;
 
@@ -844,38 +840,6 @@ class JobPortalUI {
         if (description) description.style.display = 'block';
         savedJobsGrid.innerHTML = savedJobs.map(job => this.createJobCard(job)).join('');
     }
-
-    /**
-     * Render recently viewed jobs
-     */
-    renderRecentlyViewed() {
-        const container = document.getElementById('recently-viewed-container');
-        const grid = document.getElementById('recently-viewed-grid');
-        if (!container || !grid) return;
-
-        const recentJobs = this.state.getRecentlyViewedJobs();
-
-        if (recentJobs.length === 0) {
-            container.style.display = 'none';
-            return;
-        }
-
-        container.style.display = 'block';
-        grid.innerHTML = recentJobs.map(job => this.createRecentJobCard(job)).join('');
-    }
-
-    /**
-     * Create a small card for recently viewed jobs
-     */
-    createRecentJobCard(job) {
-        return `
-            <div class="recent-job-card" onclick="ui.showJobDetails('${job.id}')" title="${this.escapeHtml(job.title)} at ${this.escapeHtml(job.company)}">
-                <h5>${this.escapeHtml(job.title)}</h5>
-                <p>${this.escapeHtml(job.company)}</p>
-            </div>
-        `;
-    }
-
 
     /**
      * Render applications list
