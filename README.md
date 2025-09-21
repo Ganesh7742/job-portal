@@ -4,7 +4,9 @@ A modern, responsive job portal built with vanilla HTML, CSS, and JavaScript. Fe
 
 ## 🎯 Live Demo
 
-Simply open `index.html` in your web browser to start using the application immediately - no build process required!
+The website is deployed on Vercel! You can view the live demo here: https://job-portal-wheat-chi.vercel.app/
+
+You can also run the project locally by opening `index.html` in your web browser - no build process required!
 
 ## ✨ Features
 
