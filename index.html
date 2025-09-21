@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Portal - Find Your Dream Job</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Floating Particles Background -->
+    <div class="particles" id="particles"></div>
+    
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1 class="logo">
+                    <i class="fas fa-briefcase"></i>
+                    JobPortal
+                </h1>
+                
+                <button class="menu-toggle" id="menu-toggle">
+                    <i class="fas fa-bars"></i>
+                    Menu
+                </button>
+                
+                <nav class="nav" id="nav-menu">
+                    <button class="nav-btn active" data-view="jobs">
+                        <i class="fas fa-list"></i> Browse Jobs
+                    </button>
+                    <button class="nav-btn" data-view="applications" id="applications-nav" style="display: none;">
+                        <i class="fas fa-file-alt"></i> My Applications
+                    </button>
+                    <button class="nav-btn" data-view="post-job" id="post-job-nav" style="display: none;">
+                        <i class="fas fa-plus"></i> Post Job
+                    </button>
+                    <button class="nav-btn" data-view="manage-jobs" id="manage-jobs-nav" style="display: none;">
+                        <i class="fas fa-cog"></i> Manage Jobs
+                    </button>
+                </nav>
+
+                <div class="user-preferences">
+                    <div class="role-toggle">
+                        <span class="role-label">I am a:</span>
+                        <select id="role-select">
+                            <option value="job_seeker">Job Seeker</option>
+                            <option value="recruiter">Recruiter</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Jobs View -->
+            <div id="jobs-view" class="view active">
+                <div class="search-filters">
+                    <div class="search-bar">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" placeholder="Search jobs by title or company...">
+                    </div>
+                    
+                    <div class="filters">
+                        <select id="sort-select">
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                            <option value="salary_high">Highest Salary</option>
+                            <option value="salary_low">Lowest Salary</option>
+                        </select>
+                        
+                        <label class="filter-checkbox">
+                            <input type="checkbox" id="remote-filter">
+                            <span>Remote Only</span>
+                        </label>
+                        
+                        <select id="category-filter">
+                            <option value="">All Categories</option>
+                        </select>
+
+                        <select id="location-filter">
+                            <option value="">All Locations</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="jobs-grid" id="jobs-grid">
+                    <!-- Job cards will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Applications View -->
+            <div id="applications-view" class="view">
+                <h2>My Applications</h2>
+                <div class="applications-list" id="applications-list">
+                    <!-- Applications will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Post Job View -->
+            <div id="post-job-view" class="view">
+                <h2>Post a New Job</h2>
+                <form class="job-form" id="job-form">
+                    <div class="form-group">
+                        <label for="job-title">Job Title *</label>
+                        <input type="text" id="job-title" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-company">Company *</label>
+                        <input type="text" id="job-company" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-location">Location *</label>
+                        <input type="text" id="job-location" required>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="job-salary-from">Salary From</label>
+                            <input type="number" id="job-salary-from">
+                        </div>
+                        <div class="form-group">
+                            <label for="job-salary-to">Salary To</label>
+                            <input type="number" id="job-salary-to">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-type">Employment Type *</label>
+                        <select id="job-type" required>
+                            <option value="">Select Type</option>
+                            <option value="Full-time">Full-time</option>
+                            <option value="Part-time">Part-time</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Freelance">Freelance</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-category">Category *</label>
+                        <select id="job-category" required>
+                            <option value="">Select Category</option>
+                            <option value="Software Engineer">Software Engineer</option>
+                            <option value="Data Scientist">Data Scientist</option>
+                            <option value="Full-stack Developer">Full-stack Developer</option>
+                            <option value="Security Engineer">Security Engineer</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-description">Description *</label>
+                        <textarea id="job-description" rows="5" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-qualifications">Qualifications (one per line)</label>
+                        <textarea id="job-qualifications" rows="4" placeholder="e.g. 3+ years experience&#10;Bachelor's degree&#10;JavaScript proficiency"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-contact">Contact Info *</label>
+                        <input type="text" id="job-contact" placeholder="Email or phone" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="job-openings">Number of Openings</label>
+                        <input type="number" id="job-openings" min="1" value="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="job-remote">
+                            <span>Remote Work Available</span>
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Post Job</button>
+                </form>
+            </div>
+
+            <!-- Manage Jobs View -->
+            <div id="manage-jobs-view" class="view">
+                <h2>Manage Jobs</h2>
+                <div class="jobs-list" id="manage-jobs-list">
+                    <!-- Recruiter's jobs will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Job Detail Modal -->
+    <div id="job-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="close-modal">&times;</span>
+            <div class="modal-body" id="modal-body">
+                <!-- Job details will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Loading jobs...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
