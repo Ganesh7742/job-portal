@@ -249,7 +249,11 @@ class JobPortalUI {
                 this.renderApplicationsList();
                 break;
             case 'post-job':
-                // Form is already in HTML
+                const deadlineInput = document.getElementById('job-deadline');
+                if (deadlineInput) {
+                    // Set min date to today to prevent selecting past dates
+                    deadlineInput.min = new Date().toISOString().split('T')[0];
+                }
                 break;
             case 'manage-jobs':
                 this.renderManageJobsList();
@@ -458,6 +462,8 @@ class JobPortalUI {
             .map(line => line.trim())
             .filter(line => line.length > 0);
 
+        const deadlineValue = document.getElementById('job-deadline').value;
+
         const jobData = {
             title: formData.get('title') || document.getElementById('job-title').value,
             company: document.getElementById('job-company').value,
@@ -471,12 +477,12 @@ class JobPortalUI {
             contact: document.getElementById('job-contact').value,
             number_of_opening: parseInt(document.getElementById('job-openings').value) || 1,
             is_remote_work: document.getElementById('job-remote').checked,
-            application_deadline: null // Could add a date picker for this
+            application_deadline: deadlineValue ? new Date(deadlineValue).toISOString() : null
         };
 
         // Validate required fields
         if (!jobData.title || !jobData.company || !jobData.location || !jobData.employment_type || 
-            !jobData.job_category || !jobData.description || !jobData.contact) {
+            !jobData.job_category || !jobData.description || !jobData.contact || !jobData.application_deadline) {
             this.showNotification('Please fill in all required fields', 'error');
             return;
         }
