@@ -9,7 +9,10 @@ class JobPortalState {
             USER_ROLE: 'jobportal_user_role',
             APPLICATIONS: 'jobportal_applications',
             USER_JOBS: 'jobportal_user_jobs',
-            FILTERS: 'jobportal_filters'
+            FILTERS: 'jobportal_filters',
+            SAVED_JOBS: 'jobportal_saved_jobs',
+            RECENTLY_VIEWED: 'jobportal_recently_viewed',
+            THEME: 'jobportal_theme'
         };
         
         this.defaultFilters = {
@@ -19,6 +22,10 @@ class JobPortalState {
             category: '',
             location: ''
         };
+
+        this.itemsPerPage = 9;
+        this.currentPage = 1;
+        this.recentlyViewedLimit = 5;
 
         this.eventListeners = new Map();
         this.init();
@@ -36,9 +43,19 @@ class JobPortalState {
         
         // Load user-posted jobs (for recruiters)
         this.userJobs = this.getFromStorage(this.storageKeys.USER_JOBS) || [];
+
+        // Load saved jobs (for job seekers)
+        this.savedJobs = this.getFromStorage(this.storageKeys.SAVED_JOBS) || [];
+
+        // Load recently viewed jobs
+        this.recentlyViewedJobs = this.getFromStorage(this.storageKeys.RECENTLY_VIEWED) || [];
+
+        // Load theme
+        this.theme = this.getFromStorage(this.storageKeys.THEME) || 'light';
         
         // Load filters
         this.filters = { ...this.defaultFilters, ...this.getFromStorage(this.storageKeys.FILTERS) };
+        this.currentPage = 1;
         
         // Initialize job data
         this.allJobs = [];
@@ -109,6 +126,25 @@ class JobPortalState {
         return this.userRole;
     }
 
+    /**
+     * Set theme (light or dark)
+     */
+    setTheme(theme) {
+        if (theme !== 'light' && theme !== 'dark') {
+            return;
+        }
+        this.theme = theme;
+        this.saveToStorage(this.storageKeys.THEME, theme);
+        this.emit('themeChanged', theme);
+    }
+
+    /**
+     * Get current theme
+     */
+    getTheme() {
+        return this.theme;
+    }
+
 
     /**
      * Set all jobs data (from API)
@@ -160,29 +196,32 @@ class JobPortalState {
      * Update an existing job (for recruiters)
      */
     updateJob(jobId, updatedData) {
+        let updatedJob = null;
         // Update in user jobs
         const userJobIndex = this.userJobs.findIndex(job => job.id === jobId);
         if (userJobIndex !== -1) {
-            this.userJobs[userJobIndex] = {
+            updatedJob = {
                 ...this.userJobs[userJobIndex],
                 ...updatedData,
                 updated_at: new Date().toISOString()
             };
+            this.userJobs[userJobIndex] = updatedJob;
             this.saveToStorage(this.storageKeys.USER_JOBS, this.userJobs);
         }
 
         // Update in all jobs
         const allJobIndex = this.allJobs.findIndex(job => job.id === jobId);
         if (allJobIndex !== -1) {
-            this.allJobs[allJobIndex] = {
+            this.allJobs[allJobIndex] = updatedJob || {
                 ...this.allJobs[allJobIndex],
                 ...updatedData,
                 updated_at: new Date().toISOString()
             };
+            if (!updatedJob) updatedJob = this.allJobs[allJobIndex];
         }
 
         this.applyFilters();
-        this.emit('jobUpdated', jobId);
+        this.emit('jobUpdated', updatedJob);
         this.emit('jobsUpdated', this.filteredJobs);
     }
 
@@ -212,7 +251,7 @@ class JobPortalState {
     /**
      * Apply for a job (for job seekers)
      */
-    applyForJob(jobId) {
+    applyForJob(jobId, applicantDetails) {
         // Check if already applied
         if (this.hasApplied(jobId)) {
             throw new Error('You have already applied for this job');
@@ -229,7 +268,8 @@ class JobPortalState {
             jobTitle: job.title,
             company: job.company,
             appliedAt: new Date().toISOString(),
-            status: 'pending'
+            status: 'pending',
+            ...applicantDetails // Add name, email, coverLetter
         };
 
         this.applications.push(application);
@@ -237,6 +277,82 @@ class JobPortalState {
         
         this.emit('applicationSubmitted', application);
         return application;
+    }
+
+    /**
+     * Save a job (for job seekers)
+     */
+    saveJob(jobId) {
+        if (!this.isJobSaved(jobId)) {
+            this.savedJobs.push(jobId);
+            this.saveToStorage(this.storageKeys.SAVED_JOBS, this.savedJobs);
+            this.emit('jobSaved', jobId);
+        }
+    }
+
+    /**
+     * Unsave a job (for job seekers)
+     */
+    unsaveJob(jobId) {
+        const index = this.savedJobs.indexOf(jobId);
+        if (index > -1) {
+            this.savedJobs.splice(index, 1);
+            this.saveToStorage(this.storageKeys.SAVED_JOBS, this.savedJobs);
+            this.emit('jobUnsaved', jobId);
+        }
+    }
+
+    /**
+     * Check if a job is saved
+     */
+    isJobSaved(jobId) {
+        return this.savedJobs.includes(jobId);
+    }
+
+    /**
+     * Get all saved job objects
+     */
+    getSavedJobs() {
+        if (this.savedJobs.length === 0) return [];
+        
+        const savedJobsSet = new Set(this.savedJobs);
+        return this.allJobs
+            .filter(job => savedJobsSet.has(job.id))
+            .sort((a, b) => this.savedJobs.indexOf(b.id) - this.savedJobs.indexOf(a.id)); // Keep saved order
+    }
+
+    /**
+     * Add a job to recently viewed list
+     */
+    addRecentlyViewed(jobId) {
+        // Remove if it already exists to move it to the front
+        const index = this.recentlyViewedJobs.indexOf(jobId);
+        if (index > -1) {
+            this.recentlyViewedJobs.splice(index, 1);
+        }
+
+        // Add to the front
+        this.recentlyViewedJobs.unshift(jobId);
+
+        // Trim the list to the limit
+        if (this.recentlyViewedJobs.length > this.recentlyViewedLimit) {
+            this.recentlyViewedJobs.length = this.recentlyViewedLimit;
+        }
+
+        this.saveToStorage(this.storageKeys.RECENTLY_VIEWED, this.recentlyViewedJobs);
+        this.emit('recentlyViewedUpdated', this.getRecentlyViewedJobs());
+    }
+
+    /**
+     * Get all recently viewed job objects
+     */
+    getRecentlyViewedJobs() {
+        if (this.recentlyViewedJobs.length === 0) return [];
+
+        const recentlyViewedSet = new Set(this.recentlyViewedJobs);
+        return this.allJobs
+            .filter(job => recentlyViewedSet.has(job.id))
+            .sort((a, b) => this.recentlyViewedJobs.indexOf(a.id) - this.recentlyViewedJobs.indexOf(b.id)); // Keep recent order
     }
 
     /**
@@ -254,6 +370,13 @@ class JobPortalState {
     }
 
     /**
+     * Get applications for a specific job
+     */
+    getApplicationsForJob(jobId) {
+        return this.applications.filter(app => app.jobId === jobId);
+    }
+
+    /**
      * Update application status
      */
     updateApplicationStatus(applicationId, status) {
@@ -266,9 +389,47 @@ class JobPortalState {
     }
 
     /**
+     * Set the current page for pagination
+     */
+    setPage(page) {
+        const info = this.getPaginationInfo();
+        const newPage = Math.max(1, Math.min(page, info.totalPages));
+
+        if (this.currentPage !== newPage) {
+            this.currentPage = newPage;
+            this.emit('pageChanged', this.getPaginationInfo());
+        }
+    }
+
+    /**
+     * Get jobs for the current page
+     */
+    getPaginatedJobs() {
+        const start = (this.currentPage - 1) * this.itemsPerPage;
+        const end = start + this.itemsPerPage;
+        return this.filteredJobs.slice(start, end);
+    }
+
+    /**
+     * Get pagination information
+     */
+    getPaginationInfo() {
+        const totalItems = this.filteredJobs.length;
+        const totalPages = Math.ceil(totalItems / this.itemsPerPage) || 1;
+        return {
+            currentPage: this.currentPage,
+            totalPages,
+            totalItems,
+            hasPrevPage: this.currentPage > 1,
+            hasNextPage: this.currentPage < totalPages,
+        };
+    }
+
+    /**
      * Set filters
      */
     setFilters(newFilters) {
+        this.currentPage = 1;
         this.filters = { ...this.filters, ...newFilters };
         this.saveToStorage(this.storageKeys.FILTERS, this.filters);
         this.applyFilters();
@@ -287,6 +448,7 @@ class JobPortalState {
      * Reset filters to default
      */
     resetFilters() {
+        this.currentPage = 1;
         this.filters = { ...this.defaultFilters };
         this.saveToStorage(this.storageKeys.FILTERS, this.filters);
         this.applyFilters();
@@ -372,7 +534,9 @@ class JobPortalState {
             totalJobs: this.allJobs.length,
             filteredJobs: this.filteredJobs.length,
             applications: this.applications.length,
-            userJobs: this.userJobs.length
+            userJobs: this.userJobs.length,
+            savedJobs: this.savedJobs.length,
+            recentlyViewed: this.recentlyViewedJobs.length
         };
     }
 
@@ -395,6 +559,9 @@ class JobPortalState {
             userRole: this.userRole,
             applications: this.applications,
             userJobs: this.userJobs,
+            savedJobs: this.savedJobs,
+            theme: this.theme,
+            recentlyViewedJobs: this.recentlyViewedJobs,
             filters: this.filters,
             exportedAt: new Date().toISOString()
         };
@@ -406,6 +573,7 @@ class JobPortalState {
     importData(data) {
         try {
             if (data.userRole) this.setUserRole(data.userRole);
+            if (data.theme) this.setTheme(data.theme);
             if (data.applications) {
                 this.applications = data.applications;
                 this.saveToStorage(this.storageKeys.APPLICATIONS, this.applications);
@@ -413,6 +581,14 @@ class JobPortalState {
             if (data.userJobs) {
                 this.userJobs = data.userJobs;
                 this.saveToStorage(this.storageKeys.USER_JOBS, this.userJobs);
+            }
+            if (data.recentlyViewedJobs) {
+                this.recentlyViewedJobs = data.recentlyViewedJobs;
+                this.saveToStorage(this.storageKeys.RECENTLY_VIEWED, this.recentlyViewedJobs);
+            }
+            if (data.savedJobs) {
+                this.savedJobs = data.savedJobs;
+                this.saveToStorage(this.storageKeys.SAVED_JOBS, this.savedJobs);
             }
             if (data.filters) {
                 this.filters = { ...this.defaultFilters, ...data.filters };

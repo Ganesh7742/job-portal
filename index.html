@@ -32,6 +32,9 @@
                     <button class="nav-btn" data-view="applications" id="applications-nav" style="display: none;">
                         <i class="fas fa-file-alt"></i> My Applications
                     </button>
+                    <button class="nav-btn" data-view="saved-jobs" id="saved-jobs-nav" style="display: none;">
+                        <i class="fas fa-bookmark"></i> Saved Jobs
+                    </button>
                     <button class="nav-btn" data-view="post-job" id="post-job-nav" style="display: none;">
                         <i class="fas fa-plus"></i> Post Job
                     </button>
@@ -48,6 +51,9 @@
                             <option value="recruiter">Recruiter</option>
                         </select>
                     </div>
+                    <button id="theme-toggle" class="theme-toggle-btn" title="Switch to Dark Mode">
+                        <i class="fas fa-moon"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -87,8 +93,19 @@
                     </div>
                 </div>
 
+                <div id="recently-viewed-container" style="display: none;">
+                    <h2 class="section-title">Recently Viewed</h2>
+                    <div class="recently-viewed-grid" id="recently-viewed-grid">
+                        <!-- Recently viewed jobs will be inserted here -->
+                    </div>
+                </div>
+
                 <div class="jobs-grid" id="jobs-grid">
                     <!-- Job cards will be inserted here -->
+                </div>
+
+                <div class="pagination" id="pagination-controls">
+                    <!-- Pagination buttons will be inserted here by JS -->
                 </div>
             </div>
 
@@ -97,6 +114,15 @@
                 <h2>My Applications</h2>
                 <div class="applications-list" id="applications-list">
                     <!-- Applications will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Saved Jobs View -->
+            <div id="saved-jobs-view" class="view">
+                <h2>Saved Jobs</h2>
+                <p class="view-description">Jobs you've saved for later. They will appear here.</p>
+                <div class="jobs-grid" id="saved-jobs-grid">
+                    <!-- Saved jobs will be inserted here -->
                 </div>
             </div>
 
@@ -205,6 +231,16 @@
             <span class="close-btn" id="close-modal">&times;</span>
             <div class="modal-body" id="modal-body">
                 <!-- Job details will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Confirmation Modal -->
+    <div id="application-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close-btn" id="close-application-modal">&times;</span>
+            <div class="modal-body" id="application-modal-body">
+                <!-- Application form will be inserted here by JS -->
             </div>
         </div>
     </div>

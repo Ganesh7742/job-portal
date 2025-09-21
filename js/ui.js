@@ -8,6 +8,7 @@ class JobPortalUI {
         this.state = state;
         this.currentView = 'jobs';
         this.modal = null;
+        this.applicationModal = null;
         this.setupEventListeners();
         this.setupStateListeners();
     }
@@ -18,6 +19,8 @@ class JobPortalUI {
     init() {
         this.updateRoleUI();
         this.setupFilters();
+        this.updateThemeUI();
+        this.renderRecentlyViewed();
         this.showView('jobs');
     }
 
@@ -30,6 +33,15 @@ class JobPortalUI {
         if (roleSelect) {
             roleSelect.addEventListener('change', (e) => {
                 this.state.setUserRole(e.target.value);
+            });
+        }
+
+        // Theme toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                const currentTheme = this.state.getTheme();
+                this.state.setTheme(currentTheme === 'light' ? 'dark' : 'light');
             });
         }
 
@@ -84,6 +96,18 @@ class JobPortalUI {
             });
         }
 
+        // Pagination controls event delegation
+        const jobsView = document.getElementById('jobs-view');
+        if (jobsView) {
+            jobsView.addEventListener('click', (e) => {
+                const target = e.target.closest('.pagination-btn');
+                if (!target || target.disabled) return;
+
+                const page = target.dataset.page;
+                if (page) this.state.setPage(parseInt(page));
+            });
+        }
+
         // Job form submission
         const jobForm = document.getElementById('job-form');
         if (jobForm) {
@@ -110,11 +134,31 @@ class JobPortalUI {
                 }
             });
         }
-
+ 
         // ESC key to close modal
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.modal && this.modal.classList.contains('active')) {
-                this.closeModal();
+            if (e.key === 'Escape') {
+                if (this.applicationModal && this.applicationModal.classList.contains('active')) {
+                    this.closeApplicationModal();
+                } else if (this.modal && this.modal.classList.contains('active')) {
+                    this.closeModal();
+                }
+            }
+        });
+
+        // Application modal close
+        const closeApplicationModalBtn = document.getElementById('close-application-modal');
+        if (closeApplicationModalBtn) {
+            closeApplicationModalBtn.addEventListener('click', () => {
+                this.closeApplicationModal();
+            });
+        }
+
+        // Application modal backdrop click
+        this.applicationModal = document.getElementById('application-modal');
+        this.applicationModal.addEventListener('click', (e) => {
+            if (e.target === this.applicationModal) {
+                this.closeApplicationModal();
             }
         });
 
@@ -135,10 +179,24 @@ class JobPortalUI {
             this.updateRoleUI();
         });
 
+        this.state.addEventListener('themeChanged', (theme) => {
+            this.updateThemeUI();
+        });
+
         this.state.addEventListener('jobsUpdated', (jobs) => {
             if (this.currentView === 'jobs') {
-                this.renderJobsGrid(jobs);
+                const paginatedJobs = this.state.getPaginatedJobs();
+                this.renderJobsGrid(paginatedJobs);
+                this.renderPaginationControls();
             }
+        });
+
+        this.state.addEventListener('pageChanged', () => {
+            if (this.currentView !== 'jobs') return;
+            const paginatedJobs = this.state.getPaginatedJobs();
+            this.renderJobsGrid(paginatedJobs);
+            this.renderPaginationControls();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         });
 
         this.state.addEventListener('applicationSubmitted', (application) => {
@@ -150,11 +208,70 @@ class JobPortalUI {
             this.clearJobForm();
         });
 
+        this.state.addEventListener('jobSaved', (jobId) => {
+            this.updateSaveButton(jobId, true);
+            this.showNotification('Job saved!', 'info');
+        });
+
+        this.state.addEventListener('jobUnsaved', (jobId) => {
+            this.updateSaveButton(jobId, false);
+            // Refresh saved jobs view if it's active
+            if (this.currentView === 'saved-jobs') {
+                this.renderSavedJobs();
+            }
+        });
+
         this.state.addEventListener('jobDeleted', (jobId) => {
             this.showNotification('Job deleted successfully!', 'success');
         });
 
+        this.state.addEventListener('jobUpdated', (job) => {
+            this.showNotification('Job updated successfully!', 'success');
+            if (this.currentView === 'post-job') {
+                this.showView('manage-jobs');
+            }
+        });
+
+        this.state.addEventListener('recentlyViewedUpdated', (jobs) => {
+            this.renderRecentlyViewed();
+        });
+
+        this.state.addEventListener('applicationUpdated', (application) => {
+            this.showNotification(`Application status updated to "${application.status}"`, 'success');
+            // Refresh 'My Applications' view if it's active
+            if (this.currentView === 'applications') {
+                this.renderApplicationsList();
+            }
+            // Update the badge in the applicants modal if it's open
+            const applicantItem = document.getElementById(`applicant-item-${application.id}`);
+            if (applicantItem) {
+                const statusBadge = applicantItem.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.className = `status-badge status-${application.status}`;
+                    statusBadge.textContent = application.status;
+                }
+            }
+        });
+
     }
+
+    /**
+     * Update UI based on theme
+     */
+    updateThemeUI() {
+        const theme = this.state.getTheme();
+        document.body.classList.toggle('dark-mode', theme === 'dark');
+
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            const icon = themeToggle.querySelector('i');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+            themeToggle.title = theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+        }
+    }
+
 
     /**
      * Update UI based on user role
@@ -171,20 +288,23 @@ class JobPortalUI {
         const applicationsNav = document.getElementById('applications-nav');
         const postJobNav = document.getElementById('post-job-nav');
         const manageJobsNav = document.getElementById('manage-jobs-nav');
+        const savedJobsNav = document.getElementById('saved-jobs-nav');
 
         if (role === 'job_seeker') {
             if (applicationsNav) applicationsNav.style.display = 'flex';
+            if (savedJobsNav) savedJobsNav.style.display = 'flex';
             if (postJobNav) postJobNav.style.display = 'none';
             if (manageJobsNav) manageJobsNav.style.display = 'none';
         } else if (role === 'recruiter') {
             if (applicationsNav) applicationsNav.style.display = 'none';
+            if (savedJobsNav) savedJobsNav.style.display = 'none';
             if (postJobNav) postJobNav.style.display = 'flex';
             if (manageJobsNav) manageJobsNav.style.display = 'flex';
         }
 
         // Switch to jobs view if current view is no longer available
         if ((role === 'job_seeker' && ['post-job', 'manage-jobs'].includes(this.currentView)) ||
-            (role === 'recruiter' && this.currentView === 'applications')) {
+            (role === 'recruiter' && ['applications', 'saved-jobs'].includes(this.currentView))) {
             this.showView('jobs');
         }
     }
@@ -241,19 +361,22 @@ class JobPortalUI {
         // Load view-specific content
         switch (viewName) {
             case 'jobs':
-                this.renderJobsGrid(this.state.getFilteredJobs());
+                const paginatedJobs = this.state.getPaginatedJobs();
+                this.renderJobsGrid(paginatedJobs);
+                this.renderPaginationControls();
+                this.renderRecentlyViewed();
                 this.updateCategoryFilter();
                 this.updateLocationFilter();
                 break;
             case 'applications':
                 this.renderApplicationsList();
                 break;
+            case 'saved-jobs':
+                this.renderSavedJobs();
+                break;
             case 'post-job':
-                const deadlineInput = document.getElementById('job-deadline');
-                if (deadlineInput) {
-                    // Set min date to today to prevent selecting past dates
-                    deadlineInput.min = new Date().toISOString().split('T')[0];
-                }
+                // Reset form to "add" mode by default
+                this.resetJobForm();
                 break;
             case 'manage-jobs':
                 this.renderManageJobsList();
@@ -319,12 +442,15 @@ class JobPortalUI {
             ? `$${job.salary_from.toLocaleString()} - $${job.salary_to.toLocaleString()}`
             : 'Salary not specified';
 
-        const deadlineText = job.application_deadline 
-            ? new Date(job.application_deadline).toLocaleDateString()
-            : 'No deadline specified';
+        const isSaved = this.state.isJobSaved(job.id);
 
         return `
             <div class="job-card" data-job-id="${job.id}">
+                ${userRole === 'job_seeker' ? `
+                    <button class="save-btn ${isSaved ? 'saved' : ''}" onclick="ui.handleSaveToggle('${job.id}')" title="${isSaved ? 'Unsave Job' : 'Save Job'}">
+                        <i class="${isSaved ? 'fas' : 'far'} fa-bookmark"></i>
+                    </button>
+                ` : ''}
                 <div class="job-header">
                     <h3 class="job-title">${this.escapeHtml(job.title)}</h3>
                     <p class="job-company">${this.escapeHtml(job.company)}</p>
@@ -362,9 +488,12 @@ class JobPortalUI {
      * Show job details in modal
      */
     showJobDetails(jobId) {
+        this.state.addRecentlyViewed(jobId);
+
         const job = this.state.getJobById(jobId);
         if (!job) return;
 
+        const isSaved = this.state.isJobSaved(jobId);
         const hasApplied = this.state.hasApplied(jobId);
         const userRole = this.state.getUserRole();
         const salaryText = job.salary_from && job.salary_to 
@@ -416,11 +545,14 @@ class JobPortalUI {
             </div>
 
             ${userRole === 'job_seeker' ? `
-                <div class="modal-section">
+                <div class="modal-section modal-footer-actions">
                     <button class="btn ${hasApplied ? 'btn-secondary' : 'btn-primary'}" 
                             ${hasApplied ? 'disabled' : `onclick="ui.applyForJob('${job.id}')"`}>
-                        <i class="fas ${hasApplied ? 'fa-check' : 'fa-paper-plane'}"></i>
+                        <i class="fas ${hasApplied ? 'fa-check' : 'fa-paper-plane'}"></i> 
                         ${hasApplied ? 'Already Applied' : 'Apply for this Job'}
+                    </button>
+                    <button class="btn btn-secondary save-toggle-btn ${isSaved ? 'saved' : ''}" onclick="ui.handleSaveToggle('${job.id}')">
+                        <i class="${isSaved ? 'fas' : 'far'} fa-bookmark"></i> ${isSaved ? 'Saved' : 'Save'}
                     </button>
                 </div>
             ` : ''}
@@ -430,19 +562,188 @@ class JobPortalUI {
     }
 
     /**
+     * Toggle saving a job
+     */
+    handleSaveToggle(jobId) {
+        if (this.state.getUserRole() !== 'job_seeker') return;
+
+        if (this.state.isJobSaved(jobId)) {
+            this.state.unsaveJob(jobId);
+        } else {
+            this.state.saveJob(jobId);
+        }
+    }
+
+    /**
+     * Update the appearance of a save button for a specific job
+     */
+    updateSaveButton(jobId, isSaved) {
+        const buttons = document.querySelectorAll(`[onclick="ui.handleSaveToggle('${jobId}')"]`);
+        buttons.forEach(button => {
+            button.classList.toggle('saved', isSaved);
+            const icon = button.querySelector('i');
+
+            if (button.classList.contains('save-btn')) { // Card button
+                button.title = isSaved ? 'Unsave Job' : 'Save Job';
+                if (icon) icon.className = `${isSaved ? 'fas' : 'far'} fa-bookmark`;
+            } else if (button.classList.contains('save-toggle-btn')) { // Modal button
+                if (icon) icon.className = `${isSaved ? 'fas' : 'far'} fa-bookmark`;
+                const textNode = Array.from(button.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+                if (textNode) {
+                    textNode.textContent = ` ${isSaved ? 'Saved' : 'Save'}`;
+                }
+            }
+        });
+    }
+
+    /**
      * Apply for a job
      */
     applyForJob(jobId) {
+        this.showApplicationModal(jobId);
+    }
+
+    /**
+     * Show the custom application modal with a form
+     */
+    showApplicationModal(jobId) {
+        const job = this.state.getJobById(jobId);
+        if (!job) {
+            this.showNotification('Job not found.', 'error');
+            return;
+        }
+
+        const applicationModalBody = document.getElementById('application-modal-body');
+        if (!this.applicationModal || !applicationModalBody) return;
+
+        applicationModalBody.innerHTML = `
+            <div class="modal-header">
+                <h2 class="modal-title">Apply for ${this.escapeHtml(job.title)}</h2>
+                <p class="modal-subtitle">at ${this.escapeHtml(job.company)}</p>
+            </div>
+            <form id="application-form" class="job-form" style="box-shadow: none; padding: 0;">
+                <input type="hidden" name="jobId" value="${job.id}">
+                <div class="form-group">
+                    <label for="applicant-name">Full Name *</label>
+                    <input type="text" id="applicant-name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="applicant-email">Email Address *</label>
+                    <input type="email" id="applicant-email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="applicant-cover-letter">Cover Letter (Optional)</label>
+                    <textarea id="applicant-cover-letter" name="coverLetter" rows="4"></textarea>
+                </div>
+                <div class="form-group" style="display: flex; justify-content: flex-end; gap: 1rem; margin-bottom: 0;">
+                    <button type="button" class="btn btn-secondary" id="cancel-application-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Application</button>
+                </div>
+            </form>
+        `;
+
+        this.applicationModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        // Add event listeners for the new form
+        document.getElementById('application-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleApplicationSubmission(new FormData(e.target));
+        });
+
+        document.getElementById('cancel-application-btn').addEventListener('click', () => {
+            this.closeApplicationModal();
+        });
+    }
+
+    /**
+     * Handle application form submission from the custom modal
+     */
+    handleApplicationSubmission(formData) {
+        const jobId = formData.get('jobId');
+        const applicantDetails = {
+            name: formData.get('name'),
+            email: formData.get('email'),
+            coverLetter: formData.get('coverLetter')
+        };
+
+        if (!applicantDetails.name || !applicantDetails.email) {
+            this.showNotification('Please fill in your name and email.', 'error');
+            return;
+        }
+
         try {
-            this.state.applyForJob(jobId);
-            this.closeModal();
+            this.state.applyForJob(jobId, applicantDetails);
+            this.closeApplicationModal();
+            this.closeModal(); // Close job details modal if it was open
             
             // Refresh the current view to update the UI
             if (this.currentView === 'jobs') {
-                this.renderJobsGrid(this.state.getFilteredJobs());
+                const paginatedJobs = this.state.getPaginatedJobs();
+                this.renderJobsGrid(paginatedJobs);
             }
         } catch (error) {
             this.showNotification(error.message, 'error');
+        }
+    }
+
+    /**
+     * Close the application modal
+     */
+    closeApplicationModal() {
+        if (this.applicationModal) {
+            this.applicationModal.classList.remove('active');
+            // Only reset body overflow if no other modal is active
+            if (!this.modal || !this.modal.classList.contains('active')) {
+                document.body.style.overflow = '';
+            }
+        }
+    }
+
+    /**
+     * Show the job form in "edit" mode
+     */
+    showEditJobForm(jobId) {
+        const job = this.state.getJobById(jobId);
+        if (!job) {
+            this.showNotification('Job not found.', 'error');
+            return;
+        }
+
+        // Switch to the form view
+        this.showView('post-job');
+
+        // Update form for editing
+        document.querySelector('#post-job-view h2').textContent = 'Edit Job';
+        document.querySelector('#job-form button[type="submit"]').textContent = 'Update Job';
+
+        // Add hidden input for job ID
+        let hiddenInput = document.getElementById('job-id-edit');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.id = 'job-id-edit';
+            document.getElementById('job-form').prepend(hiddenInput);
+        }
+        hiddenInput.value = jobId;
+
+        // Populate form fields
+        document.getElementById('job-title').value = job.title || '';
+        document.getElementById('job-company').value = job.company || '';
+        document.getElementById('job-location').value = job.location || '';
+        document.getElementById('job-salary-from').value = job.salary_from || '';
+        document.getElementById('job-salary-to').value = job.salary_to || '';
+        document.getElementById('job-type').value = job.employment_type || '';
+        document.getElementById('job-category').value = job.job_category || '';
+        document.getElementById('job-description').value = job.description || '';
+        document.getElementById('job-qualifications').value = (job.qualifications || []).join('\n');
+        document.getElementById('job-contact').value = job.contact || '';
+        document.getElementById('job-openings').value = job.number_of_opening || 1;
+        document.getElementById('job-remote').checked = job.is_remote_work || false;
+        
+        if (job.application_deadline) {
+            const deadline = new Date(job.application_deadline).toISOString().split('T')[0];
+            document.getElementById('job-deadline').value = deadline;
         }
     }
 
@@ -454,6 +755,7 @@ class JobPortalUI {
         if (!form) return;
 
         const formData = new FormData(form);
+        const editJobId = document.getElementById('job-id-edit')?.value;
         
         // Parse qualifications
         const qualificationsText = document.getElementById('job-qualifications').value;
@@ -488,9 +790,28 @@ class JobPortalUI {
         }
 
         try {
-            this.state.addJob(jobData);
+            if (editJobId) {
+                this.state.updateJob(editJobId, jobData);
+            } else {
+                this.state.addJob(jobData);
+            }
         } catch (error) {
             this.showNotification('Error posting job: ' + error.message, 'error');
+        }
+    }
+
+    /**
+     * Reset the job form to its default "add" state
+     */
+    resetJobForm() {
+        this.clearJobForm();
+        document.querySelector('#post-job-view h2').textContent = 'Post a New Job';
+        document.querySelector('#job-form button[type="submit"]').textContent = 'Post Job';
+        document.getElementById('job-id-edit')?.remove();
+        
+        const deadlineInput = document.getElementById('job-deadline');
+        if (deadlineInput) {
+            deadlineInput.min = new Date().toISOString().split('T')[0];
         }
     }
 
@@ -503,6 +824,58 @@ class JobPortalUI {
             form.reset();
         }
     }
+
+    /**
+     * Render saved jobs
+     */
+    renderSavedJobs() {
+        const savedJobsGrid = document.getElementById('saved-jobs-grid');
+        if (!savedJobsGrid) return;
+
+        const savedJobs = this.state.getSavedJobs();
+        const description = document.querySelector('#saved-jobs-view .view-description');
+
+        if (savedJobs.length === 0) {
+            savedJobsGrid.innerHTML = this.getEmptyState('No saved jobs', 'bookmark');
+            if (description) description.style.display = 'none';
+            return;
+        }
+
+        if (description) description.style.display = 'block';
+        savedJobsGrid.innerHTML = savedJobs.map(job => this.createJobCard(job)).join('');
+    }
+
+    /**
+     * Render recently viewed jobs
+     */
+    renderRecentlyViewed() {
+        const container = document.getElementById('recently-viewed-container');
+        const grid = document.getElementById('recently-viewed-grid');
+        if (!container || !grid) return;
+
+        const recentJobs = this.state.getRecentlyViewedJobs();
+
+        if (recentJobs.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        grid.innerHTML = recentJobs.map(job => this.createRecentJobCard(job)).join('');
+    }
+
+    /**
+     * Create a small card for recently viewed jobs
+     */
+    createRecentJobCard(job) {
+        return `
+            <div class="recent-job-card" onclick="ui.showJobDetails('${job.id}')" title="${this.escapeHtml(job.title)} at ${this.escapeHtml(job.company)}">
+                <h5>${this.escapeHtml(job.title)}</h5>
+                <p>${this.escapeHtml(job.company)}</p>
+            </div>
+        `;
+    }
+
 
     /**
      * Render applications list
@@ -579,6 +952,8 @@ class JobPortalUI {
         const salaryText = job.salary_from && job.salary_to 
             ? `$${job.salary_from.toLocaleString()} - $${job.salary_to.toLocaleString()}`
             : 'Salary not specified';
+        const applicants = this.state.getApplicationsForJob(job.id);
+        const applicantCount = applicants.length;
 
         return `
             <div class="manage-job-item">
@@ -588,6 +963,12 @@ class JobPortalUI {
                         <p>${this.escapeHtml(job.location)} • ${salaryText}</p>
                     </div>
                     <div class="manage-job-actions">
+                        <button class="btn btn-primary btn-small" onclick="ui.showApplicantsForJob('${job.id}')">
+                            <i class="fas fa-users"></i> Applicants (${applicantCount})
+                        </button>
+                        <button class="btn btn-secondary btn-small" onclick="ui.showEditJobForm('${job.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
                         <button class="btn btn-secondary btn-small" onclick="ui.showJobDetails('${job.id}')">
                             <i class="fas fa-eye"></i> View
                         </button>
@@ -614,6 +995,133 @@ class JobPortalUI {
     }
 
     /**
+     * Handle application status change from recruiter view
+     */
+    handleStatusChange(applicationId, newStatus) {
+        this.state.updateApplicationStatus(applicationId, newStatus);
+    }
+
+    /**
+     * Show applicants for a specific job in a modal
+     */
+    showApplicantsForJob(jobId) {
+        const job = this.state.getJobById(jobId);
+        if (!job) {
+            this.showNotification('Job not found.', 'error');
+            return;
+        }
+
+        const applicants = this.state.getApplicationsForJob(jobId);
+        const modalBody = document.getElementById('modal-body');
+        if (!modalBody) return;
+
+        let applicantsHtml;
+        if (applicants.length > 0) {
+            applicantsHtml = applicants.map(applicant => {
+                const statuses = ['pending', 'reviewed', 'interviewing', 'hired', 'rejected'];
+                const statusOptions = statuses.map(s => 
+                    `<option value="${s}" ${applicant.status === s ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`
+                ).join('');
+
+                return `
+                <div class="applicant-item" id="applicant-item-${applicant.id}">
+                    <div class="applicant-item-header">
+                        <h5>${this.escapeHtml(applicant.name)}</h5>
+                        <span class="status-badge status-${applicant.status}">${applicant.status}</span>
+                    </div>
+                    <p><a href="mailto:${this.escapeHtml(applicant.email)}">${this.escapeHtml(applicant.email)}</a></p>
+                    ${applicant.coverLetter ? `
+                        <details>
+                            <summary>View Cover Letter</summary>
+                            <p>${this.escapeHtml(applicant.coverLetter)}</p>
+                        </details>
+                    ` : '<p style="font-style: italic; color: #718096;">No cover letter submitted.</p>'}
+                    <div class="applicant-item-footer">
+                        <label for="status-select-${applicant.id}">Update Status:</label>
+                        <select id="status-select-${applicant.id}" class="applicant-status-select" onchange="ui.handleStatusChange('${applicant.id}', this.value)">
+                            ${statusOptions}
+                        </select>
+                    </div>
+                </div>
+            `}).join('');
+        } else {
+            applicantsHtml = '<p>There are no applicants for this job yet.</p>';
+        }
+
+        modalBody.innerHTML = `
+            <div class="modal-header">
+                <h2 class="modal-title">Applicants for ${this.escapeHtml(job.title)}</h2>
+                <p class="modal-subtitle">at ${this.escapeHtml(job.company)}</p>
+            </div>
+            <div class="modal-section">
+                ${applicantsHtml}
+            </div>
+        `;
+
+        this.openModal();
+    }
+
+    /**
+     * Render pagination controls for the jobs list
+     */
+    renderPaginationControls() {
+        const paginationControls = document.getElementById('pagination-controls');
+        if (!paginationControls) return;
+
+        const info = this.state.getPaginationInfo();
+        if (info.totalPages <= 1) {
+            paginationControls.innerHTML = '';
+            return;
+        }
+
+        let buttonsHtml = '';
+
+        // Previous button
+        buttonsHtml += `<button class="pagination-btn" data-page="${info.currentPage - 1}" ${!info.hasPrevPage ? 'disabled' : ''}>&laquo; Prev</button>`;
+
+        // Page number buttons logic
+        const maxButtons = 5;
+        let startPage, endPage;
+
+        if (info.totalPages <= maxButtons) {
+            startPage = 1;
+            endPage = info.totalPages;
+        } else {
+            const maxPagesBeforeCurrent = Math.floor(maxButtons / 2);
+            const maxPagesAfterCurrent = Math.ceil(maxButtons / 2) - 1;
+            if (info.currentPage <= maxPagesBeforeCurrent) {
+                startPage = 1;
+                endPage = maxButtons;
+            } else if (info.currentPage + maxPagesAfterCurrent >= info.totalPages) {
+                startPage = info.totalPages - maxButtons + 1;
+                endPage = info.totalPages;
+            } else {
+                startPage = info.currentPage - maxPagesBeforeCurrent;
+                endPage = info.currentPage + maxPagesAfterCurrent;
+            }
+        }
+
+        if (startPage > 1) {
+            buttonsHtml += `<button class="pagination-btn" data-page="1">1</button>`;
+            if (startPage > 2) buttonsHtml += `<span class="pagination-ellipsis" style="padding: 0.5rem;">...</span>`;
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            buttonsHtml += `<button class="pagination-btn ${i === info.currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+        }
+
+        if (endPage < info.totalPages) {
+            if (endPage < info.totalPages - 1) buttonsHtml += `<span class="pagination-ellipsis" style="padding: 0.5rem;">...</span>`;
+            buttonsHtml += `<button class="pagination-btn" data-page="${info.totalPages}">${info.totalPages}</button>`;
+        }
+
+        // Next button
+        buttonsHtml += `<button class="pagination-btn" data-page="${info.currentPage + 1}" ${!info.hasNextPage ? 'disabled' : ''}>Next &raquo;</button>`;
+
+        paginationControls.innerHTML = buttonsHtml;
+    }
+
+    /**
      * Open modal
      */
     openModal() {
@@ -629,7 +1137,10 @@ class JobPortalUI {
     closeModal() {
         if (this.modal) {
             this.modal.classList.remove('active');
-            document.body.style.overflow = '';
+            // If application modal is also closed, ensure overflow is reset
+            if (!this.applicationModal || !this.applicationModal.classList.contains('active')) {
+                document.body.style.overflow = '';
+            }
         }
     }
 
